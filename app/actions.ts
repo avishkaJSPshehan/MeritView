@@ -82,23 +82,57 @@ export async function submitMarks(formData: FormData) {
       lang_marks: config.subject_lang_enabled ? lang_marks : null,
       total_marks,
       exam_date: activeExamDate,
-      language: "Sinhala",
       whatsapp
     };
 
+    // Prevent duplicate entries for the same NIC on the same exam date
+    const localResults = getLocalResults();
+    if (localResults.some(r => r.nic === nic && r.exam_date === activeExamDate)) {
+      return { 
+        success: false, 
+        error: "මෙම ජාතික හැඳුනුම්පත් අංකය (NIC) සඳහා අදාල විභාග දිනයට ලකුණු දැනටමත් ඇතුලත් කර ඇත." 
+      };
+    }
+
     // Try inserting into Supabase (omit id so Postgres default gen_random_uuid() generates valid UUID)
     try {
+      const { data: existing } = await supabaseAdmin
+        .from("students_results")
+        .select("id")
+        .eq("nic", nic)
+        .eq("exam_date", activeExamDate)
+        .maybeSingle();
+
+      if (existing?.id) {
+        return { 
+          success: false, 
+          error: "මෙම ජාතික හැඳුනුම්පත් අංකය (NIC) සඳහා අදාල විභාග දිනයට ලකුණු දැනටමත් ඇතුලත් කර ඇත." 
+        };
+      }
+
       let { data: insertedRows, error } = await supabaseAdmin
         .from("students_results")
         .insert([studentRecord])
         .select();
 
       if (error) {
+        if (error.code === '23505' || error.message?.includes('duplicate key') || error.message?.includes('unique constraint')) {
+          return {
+            success: false,
+            error: "මෙම ජාතික හැඳුනුම්පත් අංකය (NIC) සඳහා අදාල විභාග දිනයට ලකුණු දැනටමත් ඇතුලත් කර ඇත."
+          };
+        }
         // If error is due to missing lang_marks column in the database, retry without lang_marks
         if (error.message?.includes("lang_marks") || error.details?.includes("lang_marks")) {
           const fallbackRecord = { ...studentRecord };
           delete fallbackRecord.lang_marks;
           const retryRes = await supabaseAdmin.from("students_results").insert([fallbackRecord]).select();
+          if (retryRes.error && (retryRes.error.code === '23505' || retryRes.error.message?.includes('duplicate key'))) {
+            return {
+              success: false,
+              error: "මෙම ජාතික හැඳුනුම්පත් අංකය (NIC) සඳහා අදාල විභාග දිනයට ලකුණු දැනටමත් ඇතුලත් කර ඇත."
+            };
+          }
           if (retryRes.data?.[0]?.id) {
             studentRecord.id = retryRes.data[0].id;
           }
@@ -527,7 +561,6 @@ export async function getAdminRankings(
       if (params.category && params.category !== "ALL") {
         pageQuery = pageQuery.ilike("category", params.category);
       }
-      if (params.language) pageQuery = pageQuery.eq("language", params.language);
       
       // Always filter by the effective date
       pageQuery = pageQuery.eq("exam_date", effectiveDate);

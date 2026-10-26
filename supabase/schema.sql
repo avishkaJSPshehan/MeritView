@@ -32,6 +32,7 @@ CREATE INDEX IF NOT EXISTS students_results_category_idx ON public.students_resu
 CREATE INDEX IF NOT EXISTS students_results_subject_idx ON public.students_results (subject);
 CREATE INDEX IF NOT EXISTS students_results_exam_date_idx ON public.students_results (exam_date);
 CREATE INDEX IF NOT EXISTS students_results_nic_idx ON public.students_results (nic);
+CREATE UNIQUE INDEX IF NOT EXISTS students_results_nic_exam_date_idx ON public.students_results (nic, exam_date);
 
 -- 3. Table: system_config (Feature Toggles, Active Date & Subject Controls)
 CREATE TABLE IF NOT EXISTS public.system_config (
@@ -85,3 +86,7 @@ BEGIN
     USING (true);
   END IF;
 END $$;
+
+-- Enforce that the same NIC cannot be submitted more than once for the same exam date
+CREATE UNIQUE INDEX IF NOT EXISTS students_results_nic_exam_date_idx ON public.students_results (nic, exam_date);
+
