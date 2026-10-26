@@ -118,16 +118,6 @@ export default function EnterMarks() {
         </CardHeader>
         <CardContent className="px-8 pb-12">
           <form onSubmit={handleSubmit} className="space-y-12 animate-in fade-in zoom-in-95 duration-500">
-            {message && message.type === 'error' && (
-              <div className="p-5 rounded-2xl bg-destructive text-destructive-foreground flex items-center gap-4 shadow-lg shadow-destructive/20 animate-in slide-in-from-top-2 duration-500 font-black">
-                <AlertCircle className="w-8 h-8 shrink-0" />
-                <div className="flex-1">
-                  <p className="text-lg uppercase tracking-tight leading-none">Registration Error</p>
-                  <p className="text-sm opacity-90 mt-1 font-bold">{message.text}</p>
-                </div>
-              </div>
-            )}
-            
             <div className="space-y-10">
               <div className="flex items-center gap-3">
                 <div className="w-1.5 h-8 bg-primary rounded-full" />
@@ -296,8 +286,18 @@ export default function EnterMarks() {
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center gap-6 pt-4">
-              <Button type="submit" className={`h-16 rounded-2xl font-black shadow-lg transition-all transform active:scale-95 ${message?.type === 'success' ? 'w-full sm:w-20 bg-green-500 hover:bg-green-600' : 'w-full sm:flex-1 text-xl shadow-primary/20 hover:scale-[1.02]'}`} disabled={loading}>
+            <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 pt-4">
+              <Button 
+                type="submit" 
+                className={`h-16 rounded-2xl font-black shadow-lg transition-all transform active:scale-95 ${
+                  message?.type === 'success' 
+                    ? 'w-full sm:w-20 bg-green-500 hover:bg-green-600' 
+                    : message?.type === 'error'
+                      ? 'w-full sm:w-auto sm:min-w-[200px] text-xl shadow-primary/20 shrink-0'
+                      : 'w-full sm:flex-1 text-xl shadow-primary/20 hover:scale-[1.02]'
+                }`} 
+                disabled={loading}
+              >
                 {loading ? (
                    <div className="flex items-center gap-2">
                      <span className="w-2 h-2 rounded-full bg-white animate-bounce" />
@@ -311,8 +311,18 @@ export default function EnterMarks() {
                 )}
               </Button>
 
+              {message && message.type === 'error' && (
+                <div className="w-full flex-1 bg-rose-50 border-2 border-rose-200 text-rose-800 p-4 rounded-2xl flex items-center gap-3 animate-in fade-in slide-in-from-left-4 duration-500 shadow-sm">
+                  <AlertCircle className="w-6 h-6 shrink-0 text-[#e11d48]" />
+                  <div className="flex-1">
+                    <p className="text-xs font-black uppercase tracking-wider text-rose-900 leading-none">Registration Error</p>
+                    <p className="text-xs sm:text-sm font-bold text-rose-800 mt-1 leading-snug">{message.text}</p>
+                  </div>
+                </div>
+              )}
+
               {message && message.type === 'success' && (
-                <div className="flex-1 bg-green-50 border-2 border-green-100 text-green-700 p-4 rounded-2xl flex items-center gap-3 animate-in fade-in slide-in-from-left-4 duration-500 shadow-sm">
+                <div className="w-full flex-1 bg-green-50 border-2 border-green-100 text-green-700 p-4 rounded-2xl flex items-center gap-3 animate-in fade-in slide-in-from-left-4 duration-500 shadow-sm">
                   <CheckCircle2 className="w-6 h-6 shrink-0 text-green-500" />
                   <div>
                     <p className="text-sm font-black uppercase tracking-tight leading-none">Accepted</p>
