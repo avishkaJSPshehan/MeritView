@@ -1,45 +1,47 @@
 "use client";
 
-import { useState } from "react";
-import { PROVINCES, PROVINCE_DISTRICTS, SUBJECTS } from "@/lib/constants";
-import { submitMarks } from "@/app/actions";
+import { useState, useEffect } from "react";
+import { PROVINCES, PROVINCE_DISTRICTS } from "@/lib/constants";
+import { submitMarks, getSystemConfig } from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, AlertCircle, ClipboardEdit, X } from "lucide-react";
-import { SubjectAutocomplete } from "@/components/SubjectAutocomplete";
-import { Badge } from "@/components/ui/badge";
+import { CheckCircle2, AlertCircle, ClipboardEdit } from "lucide-react";
 
 export default function EnterMarks() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [selectedProvince, setSelectedProvince] = useState("");
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("");
-  const [selectedLanguage, setSelectedLanguage] = useState<string>("Sinhala");
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [nicError, setNicError] = useState(false);
-  const [subjectLimitError, setSubjectLimitError] = useState(false);
   const [showWhatsappNotice, setShowWhatsappNotice] = useState(false);
   const [whatsappNumber, setWhatsappNumber] = useState("");
 
-  const addSubject = (s: string) => {
-    if (s && s !== "" && !selectedSubjects.includes(s)) {
-      if (selectedSubjects.length >= 3) {
-        setSubjectLimitError(true);
-        setTimeout(() => setSubjectLimitError(false), 3000);
-        return;
-      }
-      setSubjectLimitError(false);
-      setSelectedSubjects([...selectedSubjects, s]);
-    }
-  };
+  // Subject toggles loaded from system config
+  const [subjectConfig, setSubjectConfig] = useState({
+    iq: true,
+    gk: true,
+    lang: true,
+  });
 
-  const removeSubject = (s: string) => {
-    setSelectedSubjects(selectedSubjects.filter(sub => sub !== s));
-  };
+  useEffect(() => {
+    async function loadConfig() {
+      try {
+        const config = await getSystemConfig();
+        setSubjectConfig({
+          iq: config.subject_iq_enabled ?? true,
+          gk: config.subject_gk_enabled ?? true,
+          lang: config.subject_lang_enabled ?? true,
+        });
+      } catch (err) {
+        console.error("Failed to load subject config:", err);
+      }
+    }
+    loadConfig();
+  }, []);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -47,16 +49,39 @@ export default function EnterMarks() {
     setMessage(null);
     
     const formData = new FormData(e.currentTarget);
-    const iqMarks = Number(formData.get("iq_marks"));
-    const gkMarks = Number(formData.get("gk_marks"));
+    const iqRaw = formData.get("iq_marks");
+    const gkRaw = formData.get("gk_marks");
+    const langRaw = formData.get("lang_marks");
 
-    // Validation for multiples of 2 between 2 and 100
-    const isValid = (marks: number) => marks >= 2 && marks <= 100 && marks % 2 === 0;
+    const iqMarks = iqRaw !== null && iqRaw !== "" ? Number(iqRaw) : 0;
+    const gkMarks = gkRaw !== null && gkRaw !== "" ? Number(gkRaw) : 0;
+    const langMarks = langRaw !== null && langRaw !== "" ? Number(langRaw) : 0;
 
-    if (!isValid(iqMarks) || !isValid(gkMarks)) {
+    // Validation for multiples of 2 between 0 and 100
+    const isValid = (marks: number) => !isNaN(marks) && marks >= 0 && marks <= 100 && marks % 2 === 0;
+
+    if (subjectConfig.iq && (iqRaw === null || iqRaw === "" || !isValid(iqMarks))) {
       setMessage({ 
         type: 'error', 
-        text: 'ඇතුලත්කල ලකුණ වලංගු ලකුනක් නොවේ. නැවත උත්සහා කරන්න.' 
+        text: 'ඇතුලත්කල IQ ලකුණ වලංගු ලකුනක් නොවේ (0-100 අතර ඉරට්ටේ සංඛ්‍යාවක් විය යුතුය).' 
+      });
+      setLoading(false);
+      return;
+    }
+
+    if (subjectConfig.gk && (gkRaw === null || gkRaw === "" || !isValid(gkMarks))) {
+      setMessage({ 
+        type: 'error', 
+        text: 'ඇතුලත්කල සාමාන්‍ය දැනීම (GK) ලකුණ වලංගු ලකුනක් නොවේ (0-100 අතර ඉරට්ටේ සංඛ්‍යාවක් විය යුතුය).' 
+      });
+      setLoading(false);
+      return;
+    }
+
+    if (subjectConfig.lang && (langRaw === null || langRaw === "" || !isValid(langMarks))) {
+      setMessage({ 
+        type: 'error', 
+        text: 'ඇතුලත්කල භාෂා ප්‍රවීණතාව ලකුණ වලංගු ලකුනක් නොවේ (0-100 අතර ඉරට්ටේ සංඛ්‍යාවක් විය යුතුය).' 
       });
       setLoading(false);
       return;
@@ -68,9 +93,8 @@ export default function EnterMarks() {
       return;
     }
 
-    // Append category and language back to formData
+    // Append category back to formData
     formData.set("category", selectedCategory);
-    formData.set("language", selectedLanguage);
 
     const result = await submitMarks(formData);
 
@@ -175,7 +199,6 @@ export default function EnterMarks() {
                     </div>
                   )}
                 </div>
-                
 
                 <div className="space-y-3">
                   <Label htmlFor="province" className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Province</Label>
@@ -227,80 +250,76 @@ export default function EnterMarks() {
                     ))}
                   </div>
                 </div>
-
-                <div className="space-y-3">
-                  <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Language / භාෂාව</Label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {["Sinhala", "English", "Tamil"].map((lang) => (
-                      <button
-                        key={lang}
-                        type="button"
-                        onClick={() => setSelectedLanguage(lang)}
-                        className={`h-14 rounded-2xl border-2 font-black transition-all ${
-                          selectedLanguage === lang
-                            ? "border-primary bg-primary/10 text-primary shadow-lg shadow-primary/5"
-                            : "border-neutral-100 bg-neutral-50/50 text-muted-foreground hover:border-primary/30"
-                        }`}
-                      >
-                        {lang === "Sinhala" ? "සිංහල" : lang}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-
-                <div className="space-y-4">
-                  <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Subjects (Multiple Available)</Label>
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {selectedSubjects.map(s => (
-                      <Badge key={s} className="px-4 py-2 rounded-xl bg-primary/10 text-primary border-primary/20 flex items-center gap-2 group animate-in zoom-in-95 duration-200">
-                        <span className="font-bold text-xs">{s}</span>
-                        <X 
-                          className={`w-4 h-4 ${loading ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-primary/20 rounded-full p-0.5 transition-colors'}`} 
-                          onClick={() => !loading && removeSubject(s)} 
-                        />
-                      </Badge>
-                    ))}
-                  </div>
-                  <SubjectAutocomplete 
-                    placeholder="Search and add subject..."
-                    onSelect={(s) => addSubject(s)}
-                    className="h-14"
-                    clearOnSelect={true}
-                    disabled={loading}
-                  />
-                  {subjectLimitError && (
-                    <p className="text-[10px] text-destructive font-black animate-bounce mt-1 ml-1 uppercase tracking-widest">
-                      ⚠️ Limit Exceeded! / ඔබට තෝරාගත හැක්කේ උපරිම විෂයන් 3ක් පමණි.
-                    </p>
-                  )}
-                  {/* Hidden inputs to send multiple subject values */}
-                  {selectedSubjects.map(s => (
-                    <input key={s} type="hidden" name="subject" value={s} />
-                  ))}
-                  {selectedSubjects.length === 0 && (
-                    <p className="text-xs text-destructive font-bold ml-1 animate-pulse">Select at least one subject.</p>
-                  )}
-                </div>
               </div>
             </div>
 
+            {/* Performance Data Section with 3 specific subjects: IQ, GK, and Language Proficiency */}
             <div className="space-y-10">
               <div className="flex items-center gap-3">
                 <div className="w-1.5 h-8 bg-secondary rounded-full" />
-                <h3 className="text-xl font-black text-foreground tracking-tight">Performance Data</h3>
+                <h3 className="text-xl font-black text-foreground tracking-tight">Examination Marks / ලකුණු</h3>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-3">
-                  <Label htmlFor="iq_marks" className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">IQ Marks</Label>
-                  <Input id="iq_marks" name="iq_marks" type="number" min="2" max="100" step="2" placeholder="2, 4, 6... 100" required disabled={loading} className="rounded-2xl border-2 focus:border-primary/50 bg-neutral-50/50 h-14" />
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {subjectConfig.iq && (
+                  <div className="space-y-3">
+                    <Label htmlFor="iq_marks" className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">
+                      IQ Marks / බුද්ධි පරීක්ෂණය
+                    </Label>
+                    <Input 
+                      id="iq_marks" 
+                      name="iq_marks" 
+                      type="number" 
+                      min="0" 
+                      max="100" 
+                      step="2" 
+                      placeholder="0, 2, 4... 100" 
+                      required 
+                      disabled={loading} 
+                      className="rounded-2xl border-2 focus:border-primary/50 bg-neutral-50/50 h-14 font-bold text-lg" 
+                    />
+                  </div>
+                )}
                 
-                <div className="space-y-3">
-                  <Label htmlFor="gk_marks" className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">GK Marks</Label>
-                  <Input id="gk_marks" name="gk_marks" type="number" min="2" max="100" step="2" placeholder="2, 4, 6... 100" required disabled={loading} className="rounded-2xl border-2 focus:border-primary/50 bg-neutral-50/50 h-14" />
-                </div>
+                {subjectConfig.gk && (
+                  <div className="space-y-3">
+                    <Label htmlFor="gk_marks" className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">
+                      GK Marks / සාමාන්‍ය දැනීම
+                    </Label>
+                    <Input 
+                      id="gk_marks" 
+                      name="gk_marks" 
+                      type="number" 
+                      min="0" 
+                      max="100" 
+                      step="2" 
+                      placeholder="0, 2, 4... 100" 
+                      required 
+                      disabled={loading} 
+                      className="rounded-2xl border-2 focus:border-primary/50 bg-neutral-50/50 h-14 font-bold text-lg" 
+                    />
+                  </div>
+                )}
+
+                {subjectConfig.lang && (
+                  <div className="space-y-3">
+                    <Label htmlFor="lang_marks" className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">
+                      Language Proficiency / භාෂා ප්‍රවීණතාව
+                    </Label>
+                    <Input 
+                      id="lang_marks" 
+                      name="lang_marks" 
+                      type="number" 
+                      min="0" 
+                      max="100" 
+                      step="2" 
+                      placeholder="0, 2, 4... 100" 
+                      required 
+                      disabled={loading} 
+                      className="rounded-2xl border-2 focus:border-primary/50 bg-neutral-50/50 h-14 font-bold text-lg" 
+                    />
+                  </div>
+                )}
               </div>
             </div>
 

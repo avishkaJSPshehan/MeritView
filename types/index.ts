@@ -8,10 +8,11 @@ export type StudentResult = {
   subject: string;
   iq_marks: number;
   gk_marks: number;
+  lang_marks?: number;
   total_marks: number;
   created_at: string;
   exam_date: string;
-  language: string;
+  language?: string;
   whatsapp?: string;
 };
 

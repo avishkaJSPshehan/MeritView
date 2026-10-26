@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Trophy, Medal, Star, Filter, MapPin, Search as SearchIcon } from "lucide-react";
-import { SubjectAutocomplete } from "@/components/SubjectAutocomplete";
 
 export default function Leaderboard() {
   const [activeTab, setActiveTab] = useState("island");
@@ -19,7 +18,6 @@ export default function Leaderboard() {
   
   const [selectedProvince, setSelectedProvince] = useState<string>("");
   const [selectedDistrict, setSelectedDistrict] = useState<string>("");
-  const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [selectedCategory, setSelectedCategory] = useState<string>("Open");
   const [rankingMode, setRankingMode] = useState<string>("general");
   const [viewRankings, setViewRankings] = useState<boolean>(true);
@@ -27,7 +25,7 @@ export default function Leaderboard() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    let sortBy: "total_marks" | "iq_marks" | "gk_marks" = "total_marks";
+    let sortBy: "total_marks" | "iq_marks" | "gk_marks" | "lang_marks" = "total_marks";
     let filterProvince = undefined;
     let filterDistrict = undefined;
 
@@ -36,10 +34,10 @@ export default function Leaderboard() {
 
     if (activeTab === "iq_ranking") sortBy = "iq_marks";
     if (activeTab === "gk_ranking") sortBy = "gk_marks";
+    if (activeTab === "lang_ranking") sortBy = "lang_marks";
 
     // Reusing the same action as it provides regulated access to the data
     const response = await getAdminRankings({
-      subject: (selectedSubject && selectedSubject !== "ALL_SUBJECTS") ? selectedSubject : undefined,
       province: filterProvince,
       district: filterDistrict,
       category: selectedCategory, // Always filter by the selected list category
@@ -51,7 +49,7 @@ export default function Leaderboard() {
       setData(response.data || []);
     }
     setLoading(false);
-  }, [activeTab, selectedProvince, selectedDistrict, selectedSubject, selectedCategory, activeExamDate]);
+  }, [activeTab, selectedProvince, selectedDistrict, selectedCategory, activeExamDate]);
   // 1. Initial Config Fetch
   useEffect(() => {
     const fetchConfig = async () => {
@@ -107,9 +105,10 @@ export default function Leaderboard() {
     let lastScore = -1;
     let lastRank = 1;
     return groups.map((student: any, index) => {
-      const currentScore = (activeTab === "iq_ranking") ? student.iq_marks : 
-                           (activeTab === "gk_ranking") ? student.gk_marks : 
-                           student.total_marks;
+      const currentScore = (activeTab === "iq_ranking") ? (student.iq_marks ?? 0) : 
+                           (activeTab === "gk_ranking") ? (student.gk_marks ?? 0) : 
+                           (activeTab === "lang_ranking") ? (student.lang_marks ?? 0) :
+                           (student.total_marks ?? 0);
       
       if (currentScore !== lastScore) {
         lastRank = index + 1;
@@ -166,8 +165,9 @@ export default function Leaderboard() {
               { v: "island", l: "Island" },
               { v: "province", l: "Province" },
               { v: "district", l: "District" },
-              { v: "iq_ranking", l: "IQ" },
-              { v: "gk_ranking", l: "GK" }
+              { v: "iq_ranking", l: "IQ (බුද්ධි)" },
+              { v: "gk_ranking", l: "GK (සාමාන්‍ය)" },
+              { v: "lang_ranking", l: "Language (භාෂා)" }
             ].map((tab) => (
               <TabsTrigger 
                 key={tab.v}
@@ -182,19 +182,6 @@ export default function Leaderboard() {
 
         {/* Dynamic Filters */}
         <div className="flex flex-col md:flex-row gap-4 md:gap-6">
-          <div className="flex-1 bg-white p-5 md:p-6 rounded-[2rem] shadow-lg border border-primary/5">
-            <div className="flex items-center gap-2 mb-3 md:mb-4 text-primary">
-              <Star className="w-3.5 h-3.5" />
-              <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest">Select Subject</p>
-            </div>
-            <SubjectAutocomplete 
-              defaultValue={selectedSubject} 
-              onSelect={setSelectedSubject} 
-              showAllOption={true}
-              placeholder="All Subjects"
-              className="h-12 md:h-14 border-2 rounded-xl"
-            />
-          </div>
 
           {(needsProvinceFilter || needsDistrictFilter) && (
             <div className="flex-1 bg-white p-5 md:p-6 rounded-[2rem] shadow-lg border border-primary/5 animate-in slide-in-from-right-4">
@@ -329,9 +316,10 @@ export default function Leaderboard() {
                               student.rank === 3 ? 'bg-orange-400 text-white scale-105 shadow-orange-200' : 
                               'bg-neutral-100 text-foreground group-hover:bg-primary/10'
                             }`}>
-                              {activeTab === "iq_ranking" ? student.iq_marks : 
-                               activeTab === "gk_ranking" ? student.gk_marks : 
-                               student.total_marks}
+                              {activeTab === "iq_ranking" ? (student.iq_marks ?? 0) : 
+                               activeTab === "gk_ranking" ? (student.gk_marks ?? 0) : 
+                               activeTab === "lang_ranking" ? (student.lang_marks ?? 0) :
+                               (student.total_marks ?? 0)}
                             </span>
                           </TableCell>
                         </TableRow>
@@ -391,9 +379,10 @@ export default function Leaderboard() {
                             student.rank === 3 ? 'bg-orange-400 text-white' : 
                             'bg-neutral-100 text-foreground'
                           }`}>
-                            {activeTab === "iq_ranking" ? student.iq_marks : 
-                             activeTab === "gk_ranking" ? student.gk_marks : 
-                             student.total_marks}
+                            {activeTab === "iq_ranking" ? (student.iq_marks ?? 0) : 
+                             activeTab === "gk_ranking" ? (student.gk_marks ?? 0) : 
+                             activeTab === "lang_ranking" ? (student.lang_marks ?? 0) :
+                             (student.total_marks ?? 0)}
                           </div>
                         </div>
                     </div>

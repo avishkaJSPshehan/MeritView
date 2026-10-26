@@ -15,7 +15,10 @@ export default async function Home() {
           Simplified for You
         </h1>
         <p className="text-xl text-muted-foreground font-black max-w-2xl mx-auto leading-relaxed">
-          වැඩිම සිසුන් පිරිසකට උපාධි ගුරු වරම් හිමි කර දෙන ලංකාවේ එකම උපාධි ගුරු පන්තිය
+          The only teacher in Sri Lanka who has guided the largest number of students into the public service.
+        </p>
+        <p className="text-base text-muted-foreground/80 font-bold max-w-2xl mx-auto leading-relaxed -mt-2">
+          රාජ්‍ය සේවයට වැඩිම සිසුන් පිරිසක් යොමු කළ ලංකාවේ එකම ගුරුවරයා
         </p>
       </div>
 

@@ -56,11 +56,11 @@ function ResultPageContent() {
   const [subjectRanks, setSubjectRanks] = useState<Record<string, { island: number; province: number; district: number; total: number }>>({});
   
   const [loadingRanks, setLoadingRanks] = useState(false);
-  const [viewMode, setViewMode] = useState<'total_marks' | 'iq_marks' | 'gk_marks'>('total_marks');
+  const [viewMode, setViewMode] = useState<'total_marks' | 'iq_marks' | 'gk_marks' | 'lang_marks'>('total_marks');
   const [rankingScope, setRankingScope] = useState<'general' | 'category'>('general');
-  const [peakMarks, setPeakMarks] = useState<{ iq: number; gk: number } | null>(null);
+  const [peakMarks, setPeakMarks] = useState<{ iq: number; gk: number; lang?: number } | null>(null);
 
-  const fetchAllRanks = useCallback(async (resultId: string, mode: 'total_marks' | 'iq_marks' | 'gk_marks', allResults: StudentResult[]) => {
+  const fetchAllRanks = useCallback(async (resultId: string, mode: 'total_marks' | 'iq_marks' | 'gk_marks' | 'lang_marks', allResults: StudentResult[]) => {
     setLoadingRanks(true);
     try {
       // 1. Fetch Overall Ranks
@@ -103,7 +103,7 @@ function ResultPageContent() {
       if (allResults[selectedIndex]) {
         const peaks = await getCategoryPeakMarks(allResults[selectedIndex].category, undefined, undefined, allResults[selectedIndex].exam_date);
         if (peaks.success) {
-          setPeakMarks({ iq: peaks.maxIQ, gk: peaks.maxGK });
+          setPeakMarks({ iq: peaks.maxIQ, gk: peaks.maxGK, lang: peaks.maxLang });
         }
       }
     } catch (e) {
@@ -256,26 +256,26 @@ function ResultPageContent() {
                   <p className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-80">Total Score</p>
                   <span className="text-5xl md:text-7xl font-black tracking-tighter">{data.total_marks}</span>
                   <div className="h-0.5 w-8 bg-white/40 rounded-full my-2" />
-                  <p className="text-xs font-black opacity-90">/ 200</p>
+                  <p className="text-xs font-black opacity-90">/ 300</p>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-32 w-full items-center">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full items-center">
             {/* IQ Assessment */}
             <div className="space-y-4">
               <div className="flex justify-between items-end border-b border-rose-50 pb-3">
                 <div className="space-y-1">
-                  <h4 className="text-lg font-black text-slate-800 tracking-tight uppercase">IQ Assessment</h4>
+                  <h4 className="text-base font-black text-slate-800 tracking-tight uppercase">IQ Assessment</h4>
                   <p className="text-slate-400 font-black text-xs tracking-tight">Official Score: <span className="text-slate-900 text-xl">{data.iq_marks}</span> / 100</p>
                 </div>
-                {data.iq_marks >= 40 && <ShieldCheck className="w-6 h-6 text-emerald-500 mb-1" />}
+                {data.iq_marks >= 40 && <ShieldCheck className="w-5 h-5 text-emerald-500 mb-1" />}
               </div>
               <div className="h-2.5 w-full bg-rose-100/50 rounded-full overflow-hidden shadow-inner border border-rose-100">
                 <div
                   className="h-full bg-gradient-to-r from-rose-700 via-rose-600 to-rose-400 rounded-full"
-                  style={{ width: `${data.iq_marks}%` }}
+                  style={{ width: `${Math.min(100, data.iq_marks)}%` }}
                 />
               </div>
               {peakMarks && (
@@ -289,15 +289,15 @@ function ResultPageContent() {
             <div className="space-y-4">
               <div className="flex justify-between items-end border-b border-rose-50 pb-3">
                 <div className="space-y-1">
-                  <h4 className="text-lg font-black text-slate-800 tracking-tight uppercase">General Knowledge</h4>
+                  <h4 className="text-base font-black text-slate-800 tracking-tight uppercase">General Knowledge</h4>
                   <p className="text-slate-400 font-black text-xs tracking-tight">Official Score: <span className="text-slate-900 text-xl">{data.gk_marks}</span> / 100</p>
                 </div>
-                {data.gk_marks >= 40 && <ShieldCheck className="w-6 h-6 text-emerald-500 mb-1" />}
+                {data.gk_marks >= 40 && <ShieldCheck className="w-5 h-5 text-emerald-500 mb-1" />}
               </div>
               <div className="h-2.5 w-full bg-rose-100/50 rounded-full overflow-hidden shadow-inner border border-rose-100">
                 <div
                   className="h-full bg-gradient-to-r from-rose-700 via-rose-600 to-rose-400 rounded-full"
-                  style={{ width: `${data.gk_marks}%` }}
+                  style={{ width: `${Math.min(100, data.gk_marks)}%` }}
                 />
               </div>
               {peakMarks && (
@@ -306,21 +306,44 @@ function ResultPageContent() {
                 </p>
               )}
             </div>
+
+            {/* Language Proficiency */}
+            <div className="space-y-4">
+              <div className="flex justify-between items-end border-b border-rose-50 pb-3">
+                <div className="space-y-1">
+                  <h4 className="text-base font-black text-slate-800 tracking-tight uppercase">Language Proficiency</h4>
+                  <p className="text-slate-400 font-black text-xs tracking-tight">Official Score: <span className="text-slate-900 text-xl">{data.lang_marks ?? 0}</span> / 100</p>
+                </div>
+                {(data.lang_marks ?? 0) >= 40 && <ShieldCheck className="w-5 h-5 text-emerald-500 mb-1" />}
+              </div>
+              <div className="h-2.5 w-full bg-rose-100/50 rounded-full overflow-hidden shadow-inner border border-rose-100">
+                <div
+                  className="h-full bg-gradient-to-r from-rose-700 via-rose-600 to-rose-400 rounded-full"
+                  style={{ width: `${Math.min(100, data.lang_marks ?? 0)}%` }}
+                />
+              </div>
+              {peakMarks && peakMarks.lang !== undefined && (
+                <p className="text-[9px] font-black text-rose-900/40 uppercase tracking-widest text-center">
+                  Highest in {data.category}: <span className="text-rose-600/60">{peakMarks.lang}</span>
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
         <div className="p-6 border-t border-rose-50 bg-rose-50/20 flex flex-col items-center gap-12">
           {/* PLACEMENT METRIC SELECTOR */}
-          <div className="flex bg-white p-1 rounded-2xl border border-rose-200 shadow-sm backdrop-blur-md">
+          <div className="flex flex-wrap justify-center bg-white p-1 rounded-2xl border border-rose-200 shadow-sm backdrop-blur-md gap-1">
             {[
               { id: 'total_marks', label: 'Overall Result' },
               { id: 'iq_marks', label: 'IQ Assessment' },
-              { id: 'gk_marks', label: 'GK Assessment' }
+              { id: 'gk_marks', label: 'GK Assessment' },
+              { id: 'lang_marks', label: 'Language Proficiency' }
             ].map((mode) => (
               <button
                 key={mode.id}
                 onClick={() => setViewMode(mode.id as any)}
-                className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
                   viewMode === mode.id
                   ? 'bg-rose-600 text-white shadow-lg'
                   : 'text-slate-400 hover:bg-rose-50'
@@ -414,7 +437,7 @@ function ResultPageContent() {
              </div>
 
              {/* 2. SUBJECT SPECIFIC RANKINGS */}
-             {Object.keys(subjectRanks).map((subject) => {
+             {Object.keys(subjectRanks).filter(s => s && s !== "General").map((subject) => {
                 const ranks = subjectRanks[subject];
                 return (
                   <div key={subject} className="space-y-6">
