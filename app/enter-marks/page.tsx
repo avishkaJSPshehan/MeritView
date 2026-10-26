@@ -14,7 +14,6 @@ export default function EnterMarks() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [selectedProvince, setSelectedProvince] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [nicError, setNicError] = useState(false);
   const [showWhatsappNotice, setShowWhatsappNotice] = useState(false);
@@ -63,7 +62,7 @@ export default function EnterMarks() {
     if (subjectConfig.iq && (iqRaw === null || iqRaw === "" || !isValid(iqMarks))) {
       setMessage({ 
         type: 'error', 
-        text: 'ඇතුලත්කල IQ ලකුණ වලංගු ලකුනක් නොවේ (0-100 අතර ඉරට්ටේ සංඛ්‍යාවක් විය යුතුය).' 
+        text: 'ඇතුලත්කල බුද්ධි පරීක්ෂණ ලකුණ වලංගු ලකුනක් නොවේ (0-100 අතර ඉරට්ටේ සංඛ්‍යාවක් විය යුතුය).' 
       });
       setLoading(false);
       return;
@@ -72,7 +71,7 @@ export default function EnterMarks() {
     if (subjectConfig.gk && (gkRaw === null || gkRaw === "" || !isValid(gkMarks))) {
       setMessage({ 
         type: 'error', 
-        text: 'ඇතුලත්කල සාමාන්‍ය දැනීම (GK) ලකුණ වලංගු ලකුනක් නොවේ (0-100 අතර ඉරට්ටේ සංඛ්‍යාවක් විය යුතුය).' 
+        text: 'ඇතුලත්කල සාමාන්‍ය දැනීම ලකුණ වලංගු ලකුනක් නොවේ (0-100 අතර ඉරට්ටේ සංඛ්‍යාවක් විය යුතුය).' 
       });
       setLoading(false);
       return;
@@ -81,20 +80,14 @@ export default function EnterMarks() {
     if (subjectConfig.lang && (langRaw === null || langRaw === "" || !isValid(langMarks))) {
       setMessage({ 
         type: 'error', 
-        text: 'ඇතුලත්කල භාෂා ප්‍රවීණතාව ලකුණ වලංගු ලකුනක් නොවේ (0-100 අතර ඉරට්ටේ සංඛ්‍යාවක් විය යුතුය).' 
+        text: 'ඇතුලත්කල භාෂා හැකියාව ලකුණ වලංගු ලකුනක් නොවේ (0-100 අතර ඉරට්ටේ සංඛ්‍යාවක් විය යුතුය).' 
       });
       setLoading(false);
       return;
     }
 
-    if (!selectedCategory) {
-      setMessage({ type: 'error', text: 'Please select a category (Open or limited).' });
-      setLoading(false);
-      return;
-    }
-
-    // Append category back to formData
-    formData.set("category", selectedCategory);
+    // Default category to Open
+    formData.set("category", "Open");
 
     const result = await submitMarks(formData);
 
@@ -230,26 +223,6 @@ export default function EnterMarks() {
                     {selectedProvince && PROVINCE_DISTRICTS[selectedProvince].map((d) => <option key={d} value={d} className="bg-white text-foreground">{d}</option>)}
                   </select>
                 </div>
-
-                <div className="space-y-3">
-                  <Label className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">Category / කාණ්ඩය</Label>
-                  <div className="grid grid-cols-2 gap-4">
-                    {["Open", "limited"].map((cat) => (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => setSelectedCategory(cat)}
-                        className={`h-14 rounded-2xl border-2 font-black transition-all ${
-                          selectedCategory === cat
-                            ? "border-primary bg-primary/10 text-primary shadow-lg shadow-primary/5"
-                            : "border-neutral-100 bg-neutral-50/50 text-muted-foreground hover:border-primary/30"
-                        }`}
-                      >
-                        {cat}
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -264,7 +237,7 @@ export default function EnterMarks() {
                 {subjectConfig.iq && (
                   <div className="space-y-3">
                     <Label htmlFor="iq_marks" className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">
-                      IQ Marks / බුද්ධි පරීක්ෂණය
+                      බුද්ධි පරීක්ෂණය
                     </Label>
                     <Input 
                       id="iq_marks" 
@@ -284,7 +257,7 @@ export default function EnterMarks() {
                 {subjectConfig.gk && (
                   <div className="space-y-3">
                     <Label htmlFor="gk_marks" className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">
-                      GK Marks / සාමාන්‍ය දැනීම
+                      සාමාන්‍ය දැනීම
                     </Label>
                     <Input 
                       id="gk_marks" 
@@ -304,7 +277,7 @@ export default function EnterMarks() {
                 {subjectConfig.lang && (
                   <div className="space-y-3">
                     <Label htmlFor="lang_marks" className="text-sm font-bold uppercase tracking-wider text-muted-foreground ml-1">
-                      Language Proficiency / භාෂා ප්‍රවීණතාව
+                      භාෂා හැකියාව
                     </Label>
                     <Input 
                       id="lang_marks" 

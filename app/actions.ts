@@ -6,7 +6,13 @@ import { StudentResult } from "@/types";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { getLocalConfigMap, saveLocalConfig } from "@/lib/localConfig";
-import { getLocalResults, saveLocalResult, deleteLocalResult } from "@/lib/localResults";
+import { 
+  getLocalResults, 
+  saveLocalResult, 
+  deleteLocalResult, 
+  deleteLocalResultsByDate, 
+  deleteAllLocalResults 
+} from "@/lib/localResults";
 
 export async function submitMarks(formData: FormData) {
   try {
@@ -41,17 +47,17 @@ export async function submitMarks(formData: FormData) {
     // Validate marks for enabled subjects
     if (config.subject_iq_enabled) {
       if (iqRaw === null || iqRaw === "" || !isValid(iq_marks)) {
-        return { success: false, error: "වලංගු IQ ලකුණක් ඇතුලත් කරන්න (0-100 අතර ඉරට්ටේ සංඛ්‍යාවක්)." };
+        return { success: false, error: "වලංගු බුද්ධි පරීක්ෂණ ලකුණක් ඇතුලත් කරන්න (0-100 අතර ඉරට්ටේ සංඛ්‍යාවක්)." };
       }
     }
     if (config.subject_gk_enabled) {
       if (gkRaw === null || gkRaw === "" || !isValid(gk_marks)) {
-        return { success: false, error: "වලංගු සාමාන්‍ය දැනීම (GK) ලකුණක් ඇතුලත් කරන්න (0-100 අතර ඉරට්ටේ සංඛ්‍යාවක්)." };
+        return { success: false, error: "වලංගු සාමාන්‍ය දැනීම ලකුණක් ඇතුලත් කරන්න (0-100 අතර ඉරට්ටේ සංඛ්‍යාවක්)." };
       }
     }
     if (config.subject_lang_enabled) {
       if (langRaw === null || langRaw === "" || !isValid(lang_marks)) {
-        return { success: false, error: "වලංගු භාෂා ප්‍රවීණතාව (Language Proficiency) ලකුණක් ඇතුලත් කරන්න (0-100 අතර ඉරට්ටේ සංඛ්‍යාවක්)." };
+        return { success: false, error: "වලංගු භාෂා හැකියාව ලකුණක් ඇතුලත් කරන්න (0-100 අතර ඉරට්ටේ සංඛ්‍යාවක්)." };
       }
     }
 
@@ -65,42 +71,53 @@ export async function submitMarks(formData: FormData) {
     const activeExamDate = config.active_exam_date || new Date().toISOString().split('T')[0];
 
     const studentRecord: any = {
-      id: 'res_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8),
       nic,
       name,
       province,
       district,
       category,
       subject: "General",
-      iq_marks: config.subject_iq_enabled ? iq_marks : 0,
-      gk_marks: config.subject_gk_enabled ? gk_marks : 0,
-      lang_marks: config.subject_lang_enabled ? lang_marks : 0,
+      iq_marks: config.subject_iq_enabled ? iq_marks : null,
+      gk_marks: config.subject_gk_enabled ? gk_marks : null,
+      lang_marks: config.subject_lang_enabled ? lang_marks : null,
       total_marks,
       exam_date: activeExamDate,
       language: "Sinhala",
-      whatsapp,
-      created_at: new Date().toISOString()
+      whatsapp
     };
 
-    // Try inserting into Supabase
+    // Try inserting into Supabase (omit id so Postgres default gen_random_uuid() generates valid UUID)
     try {
-      let { error } = await supabaseAdmin.from("students_results").insert([studentRecord]);
+      let { data: insertedRows, error } = await supabaseAdmin
+        .from("students_results")
+        .insert([studentRecord])
+        .select();
 
       if (error) {
         // If error is due to missing lang_marks column in the database, retry without lang_marks
         if (error.message?.includes("lang_marks") || error.details?.includes("lang_marks")) {
           const fallbackRecord = { ...studentRecord };
           delete fallbackRecord.lang_marks;
-          await supabaseAdmin.from("students_results").insert([fallbackRecord]);
+          const retryRes = await supabaseAdmin.from("students_results").insert([fallbackRecord]).select();
+          if (retryRes.data?.[0]?.id) {
+            studentRecord.id = retryRes.data[0].id;
+          }
         } else {
           console.warn("Supabase insert notice (saving to local persistence fallback):", error.message || error);
         }
+      } else if (insertedRows?.[0]?.id) {
+        studentRecord.id = insertedRows[0].id;
       }
     } catch (dbErr: any) {
       console.warn("Supabase network/connection exception (saving to local persistence fallback):", dbErr?.message);
     }
 
-    // Always ensure local persistence is safely saved/updated
+    if (!studentRecord.id) {
+      studentRecord.id = 'loc_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+    }
+    studentRecord.created_at = new Date().toISOString();
+
+    // Always ensure local persistence is safely saved/updated with the assigned id
     saveLocalResult(studentRecord);
 
     revalidatePath("/admin");
@@ -171,7 +188,7 @@ export async function getStudentRank(
   type: 'island' | 'province' | 'district',
   sortBy: 'total_marks' | 'iq_marks' | 'gk_marks' | 'lang_marks' = 'total_marks',
   scope: 'subject' | 'general' | 'category' = 'subject',
-  ignoreLanguage: boolean = false
+  _ignoreLanguage: boolean = true
 ) {
   try {
     let student: any = null;
@@ -205,7 +222,6 @@ export async function getStudentRank(
       if (type === 'province') pool = pool.filter(r => r.province === student.province);
       else if (type === 'district') pool = pool.filter(r => r.district === student.district);
       if (effectiveRankingMode === 'categorized') pool = pool.filter(r => r.category === student.category);
-      if (student.language && !ignoreLanguage) pool = pool.filter(r => r.language === student.language);
 
       const uniquePool = new Map<string, number>();
       pool.forEach(row => {
@@ -230,7 +246,6 @@ export async function getStudentRank(
         if (type === 'province') query = query.eq('province', student.province);
         else if (type === 'district') query = query.eq('district', student.district);
         if (effectiveRankingMode === 'categorized') query = query.eq('category', student.category);
-        if (student.language && !ignoreLanguage) query = query.eq('language', student.language);
 
         const { count: totalCandidates, error: countErr } = await query;
         if (countErr) throw countErr;
@@ -246,7 +261,6 @@ export async function getStudentRank(
         if (type === 'province') higherScoresQuery = higherScoresQuery.eq('province', student.province);
         else if (type === 'district') higherScoresQuery = higherScoresQuery.eq('district', student.district);
         if (effectiveRankingMode === 'categorized') higherScoresQuery = higherScoresQuery.eq('category', student.category);
-        if (student.language && !ignoreLanguage) higherScoresQuery = higherScoresQuery.eq('language', student.language);
 
         const { count: higherScoresCount, error: rankErr } = await higherScoresQuery;
         if (rankErr) throw rankErr;
@@ -276,10 +290,6 @@ export async function getStudentRank(
 
           if (effectiveRankingMode === 'categorized') {
             pageQuery = pageQuery.eq('category', student.category);
-          }
-
-          if (student.language && !ignoreLanguage) {
-            pageQuery = pageQuery.eq('language', student.language);
           }
 
           const { data, error } = await pageQuery;
@@ -514,7 +524,9 @@ export async function getAdminRankings(
       if (params.subject) pageQuery = pageQuery.eq("subject", params.subject);
       if (params.province) pageQuery = pageQuery.eq("province", params.province);
       if (params.district) pageQuery = pageQuery.eq("district", params.district);
-      if (params.category) pageQuery = pageQuery.eq("category", params.category);
+      if (params.category && params.category !== "ALL") {
+        pageQuery = pageQuery.ilike("category", params.category);
+      }
       if (params.language) pageQuery = pageQuery.eq("language", params.language);
       
       // Always filter by the effective date
@@ -529,7 +541,9 @@ export async function getAdminRankings(
         console.warn("getAdminRankings Supabase error:", error.message);
         const localData = getLocalResults();
         let filtered = localData.filter(s => !effectiveDate || s.exam_date === effectiveDate);
-        if (params.category && params.category !== "ALL") filtered = filtered.filter(s => s.category === params.category);
+        if (params.category && params.category !== "ALL") {
+          filtered = filtered.filter(s => s.category?.toLowerCase() === params.category?.toLowerCase());
+        }
         if (params.province) filtered = filtered.filter(s => s.province === params.province);
         if (params.district) filtered = filtered.filter(s => s.district === params.district);
         const sortCol = params.sortBy || "total_marks";
@@ -548,6 +562,25 @@ export async function getAdminRankings(
       // Safety cap
       if (allData.length >= 200000) finished = true;
     }
+
+    // Merge any local records that might not have synced yet
+    const localData = getLocalResults();
+    const existingNics = new Set(allData.map(r => r.nic));
+    
+    localData.forEach(localRec => {
+      if (!existingNics.has(localRec.nic) && (!effectiveDate || localRec.exam_date === effectiveDate)) {
+        if (!params.category || params.category === "ALL" || localRec.category?.toLowerCase() === params.category?.toLowerCase()) {
+          if (!params.province || localRec.province === params.province) {
+            if (!params.district || localRec.district === params.district) {
+              allData.push(localRec);
+            }
+          }
+        }
+      }
+    });
+
+    const sortCol = params.sortBy || "total_marks";
+    allData.sort((a: any, b: any) => (b[sortCol] ?? 0) - (a[sortCol] ?? 0));
 
     return { success: true, data: allData as StudentResult[] };
   } catch (error: any) {
@@ -591,20 +624,65 @@ export async function adminLogout() {
  * (In a real app, these should check for admin_token cookie again or use supabaseAdmin Auth)
  */
 
+export async function purgeDataByDate(examDate: string) {
+  const cookieStore = await cookies();
+  if (!cookieStore.get("admin_token")) return { success: false, error: "Unauthorized" };
+
+  try {
+    const cleanDate = (examDate || "").trim();
+    if (!cleanDate) return { success: false, error: "Exam date is required." };
+
+    try {
+      const { error } = await supabaseAdmin
+        .from("students_results")
+        .delete()
+        .eq("exam_date", cleanDate);
+
+      if (error) {
+        console.warn("Supabase delete by date notice (proceeding with local purge):", error.message);
+      }
+    } catch (dbErr: any) {
+      console.warn("Supabase delete by date exception (proceeding with local purge):", dbErr?.message);
+    }
+
+    // Always ensure local persistence is also purged for this date
+    deleteLocalResultsByDate(cleanDate);
+
+    revalidatePath("/");
+    revalidatePath("/admin");
+    revalidatePath("/leaderboard");
+    revalidatePath("/result");
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
 export async function deleteAllData() {
   const cookieStore = await cookies();
   if (!cookieStore.get("admin_token")) return { success: false, error: "Unauthorized" };
 
   try {
-    const { error } = await supabaseAdmin
-      .from("students_results")
-      .delete()
-      .neq("id", "00000000-0000-0000-0000-000000000000"); // Standard way to delete all in supabaseAdmin without RLS issues sometimes
+    try {
+      const { error } = await supabaseAdmin
+        .from("students_results")
+        .delete()
+        .neq("id", "00000000-0000-0000-0000-000000000000");
 
-    if (error) return { success: false, error: error.message };
-    
+      if (error) {
+        console.warn("Supabase delete all notice (proceeding with local purge):", error.message);
+      }
+    } catch (dbErr: any) {
+      console.warn("Supabase delete all exception (proceeding with local purge):", dbErr?.message);
+    }
+
+    // Always clear local persistence as well
+    deleteAllLocalResults();
+
     revalidatePath("/");
     revalidatePath("/admin");
+    revalidatePath("/leaderboard");
+    revalidatePath("/result");
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err.message };
@@ -663,25 +741,70 @@ export async function getSystemConfig() {
 
 export async function getUserPerformance(nic: string) {
   try {
-    const { data, error } = await supabaseAdmin
-      .from("students_results")
-      .select("*")
-      .eq("nic", nic)
-      .order("exam_date", { ascending: true });
+    const cleanNic = (nic || "").trim();
+    if (!cleanNic) return { success: false, error: "NIC is required." };
 
-    if (error) throw error;
+    let allRows: any[] = [];
+    try {
+      const { data, error } = await supabaseAdmin
+        .from("students_results")
+        .select("*")
+        .eq("nic", cleanNic)
+        .order("exam_date", { ascending: true });
 
-    const performanceMap = new Map<string, { iq: number, gk: number, lang?: number, total: number }>();
-    data?.forEach(row => {
-      performanceMap.set(row.exam_date, { iq: row.iq_marks, gk: row.gk_marks, lang: row.lang_marks, total: row.total_marks });
+      if (!error && data) allRows = data;
+    } catch (e) {}
+
+    // Check and merge local storage fallback
+    const localData = getLocalResults().filter(r => r.nic === cleanNic);
+    localData.forEach(l => {
+      if (!allRows.some(r => r.id === l.id || (r.exam_date === l.exam_date && r.total_marks === l.total_marks))) {
+        allRows.push(l);
+      }
+    });
+
+    if (allRows.length === 0) {
+      return { success: false, error: "No performance history found for this NIC." };
+    }
+
+    // Sort chronologically
+    allRows.sort((a, b) => (a.exam_date || "").localeCompare(b.exam_date || ""));
+
+    const candidateName = allRows[allRows.length - 1]?.name || allRows[0]?.name || "Candidate";
+
+    // Format data points for the 3 subjects
+    // Only assign numerical score if marks were entered, otherwise null so no point is plotted
+    const formattedData = allRows.map((row, index) => {
+      const dateLabel = row.exam_date || `Exam ${index + 1}`;
+      const total = typeof row.total_marks === 'number' ? row.total_marks : 0;
+
+      const getEntered = (val: any, others: any[]) => {
+        if (val === null || val === undefined || val === '') return null;
+        const n = Number(val);
+        if (isNaN(n)) return null;
+        if (n > 0) return n;
+        // If 0, check if it was just an omitted default when other entered marks equal total
+        const otherSum = others.reduce((acc, curr) => acc + (typeof curr === 'number' && curr > 0 ? curr : 0), 0);
+        if (n === 0 && otherSum === total && total > 0) {
+          return null;
+        }
+        return n;
+      };
+
+      return {
+        date: dateLabel,
+        examName: `Exam #${index + 1}${row.exam_date ? ` (${row.exam_date})` : ''}`,
+        iq: getEntered(row.iq_marks, [row.gk_marks, row.lang_marks]),
+        gk: getEntered(row.gk_marks, [row.iq_marks, row.lang_marks]),
+        lang: getEntered(row.lang_marks, [row.iq_marks, row.gk_marks]),
+        total
+      };
     });
 
     return { 
       success: true, 
-      data: Array.from(performanceMap.entries()).map(([date, marks]) => ({
-        date,
-        ...marks
-      }))
+      name: candidateName,
+      data: formattedData
     };
   } catch (err: any) {
     return { success: false, error: err.message };

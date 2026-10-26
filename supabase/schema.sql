@@ -68,3 +68,20 @@ INSERT INTO public.system_config (key, value) VALUES
 ('subject_gk_enabled', 'true'),
 ('subject_lang_enabled', 'true')
 ON CONFLICT (key) DO NOTHING;
+
+-- Performance index for exam_date filtering & date-based purging
+CREATE INDEX IF NOT EXISTS students_results_exam_date_idx ON public.students_results (exam_date);
+
+-- If Row Level Security (RLS) is enabled, ensure DELETE policy is granted:
+DO $$ 
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies 
+    WHERE tablename = 'students_results' AND policyname = 'Allow delete on students_results'
+  ) THEN
+    CREATE POLICY "Allow delete on students_results" 
+    ON public.students_results 
+    FOR DELETE 
+    USING (true);
+  END IF;
+END $$;

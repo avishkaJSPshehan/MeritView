@@ -18,10 +18,12 @@ export default function Leaderboard() {
   
   const [selectedProvince, setSelectedProvince] = useState<string>("");
   const [selectedDistrict, setSelectedDistrict] = useState<string>("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("Open");
   const [rankingMode, setRankingMode] = useState<string>("general");
   const [viewRankings, setViewRankings] = useState<boolean>(true);
   const [activeExamDate, setActiveExamDate] = useState<string>("");
+  const [subjectIqEnabled, setSubjectIqEnabled] = useState<boolean>(true);
+  const [subjectGkEnabled, setSubjectGkEnabled] = useState<boolean>(true);
+  const [subjectLangEnabled, setSubjectLangEnabled] = useState<boolean>(true);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -40,7 +42,6 @@ export default function Leaderboard() {
     const response = await getAdminRankings({
       province: filterProvince,
       district: filterDistrict,
-      category: selectedCategory, // Always filter by the selected list category
       sortBy,
       examDate: activeExamDate || undefined
     });
@@ -49,7 +50,7 @@ export default function Leaderboard() {
       setData(response.data || []);
     }
     setLoading(false);
-  }, [activeTab, selectedProvince, selectedDistrict, selectedCategory, activeExamDate]);
+  }, [activeTab, selectedProvince, selectedDistrict, activeExamDate]);
   // 1. Initial Config Fetch
   useEffect(() => {
     const fetchConfig = async () => {
@@ -57,9 +58,19 @@ export default function Leaderboard() {
       if (config.ranking_mode) setRankingMode(config.ranking_mode);
       setViewRankings(config.view_rankings);
       if (config.active_exam_date) setActiveExamDate(config.active_exam_date);
+      setSubjectIqEnabled(config.subject_iq_enabled ?? true);
+      setSubjectGkEnabled(config.subject_gk_enabled ?? true);
+      setSubjectLangEnabled(config.subject_lang_enabled ?? true);
     };
     fetchConfig();
   }, []);
+
+  // Fallback to Island tab if currently selected subject ranking tab is disabled
+  useEffect(() => {
+    if (activeTab === "lang_ranking" && !subjectLangEnabled) setActiveTab("island");
+    if (activeTab === "iq_ranking" && !subjectIqEnabled) setActiveTab("island");
+    if (activeTab === "gk_ranking" && !subjectGkEnabled) setActiveTab("island");
+  }, [activeTab, subjectLangEnabled, subjectIqEnabled, subjectGkEnabled]);
 
   // 2. Data Fetch on Filter/Date Change
   useEffect(() => {
@@ -93,7 +104,7 @@ export default function Leaderboard() {
     const groups: (Omit<StudentResult, 'nic' | 'subject'>)[] = [];
     const nameMap = new Map<string, number>();
     data.forEach((student: StudentResult) => {
-      const key = `${student.nic}-${student.category}`; // Group by NIC and Category
+      const key = `${student.nic}`; // Group by NIC
       if (!nameMap.has(key)) {
         nameMap.set(key, groups.length);
         const { nic, subject, ...safeStudent } = student;
@@ -160,19 +171,19 @@ export default function Leaderboard() {
       <div className="space-y-6 md:space-y-8">
         {/* Navigation Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="flex flex-wrap h-auto p-1.5 bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-xl border gap-1 md:gap-2">
+          <TabsList className="grid grid-cols-3 sm:flex sm:flex-wrap h-auto p-1.5 bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-xl border gap-1 md:gap-2 w-full">
             {[
-              { v: "island", l: "Island" },
-              { v: "province", l: "Province" },
-              { v: "district", l: "District" },
-              { v: "iq_ranking", l: "IQ (බුද්ධි)" },
-              { v: "gk_ranking", l: "GK (සාමාන්‍ය)" },
-              { v: "lang_ranking", l: "Language (භාෂා)" }
-            ].map((tab) => (
+              { v: "island", l: "Island", show: true },
+              { v: "province", l: "Province", show: true },
+              { v: "district", l: "District", show: true },
+              { v: "iq_ranking", l: "IQ (බුද්ධි)", show: subjectIqEnabled },
+              { v: "gk_ranking", l: "GK (සාමාන්‍ය)", show: subjectGkEnabled },
+              { v: "lang_ranking", l: "භාෂා හැකියාව", show: subjectLangEnabled }
+            ].filter(tab => tab.show).map((tab) => (
               <TabsTrigger 
                 key={tab.v}
                 value={tab.v} 
-                className="flex-1 py-2.5 md:py-3 rounded-xl font-black text-[9px] md:text-[10px] uppercase tracking-widest data-[state=active]:bg-primary data-[state=active]:text-white transition-all min-w-[70px]"
+                className="py-2.5 md:py-3 rounded-xl font-black text-[9px] md:text-[10px] uppercase tracking-widest data-[state=active]:bg-primary data-[state=active]:text-white transition-all text-center flex items-center justify-center sm:flex-1 min-w-[70px]"
               >
                 {tab.l}
               </TabsTrigger>
@@ -181,9 +192,8 @@ export default function Leaderboard() {
         </Tabs>
 
         {/* Dynamic Filters */}
-        <div className="flex flex-col md:flex-row gap-4 md:gap-6">
-
-          {(needsProvinceFilter || needsDistrictFilter) && (
+        {(needsProvinceFilter || needsDistrictFilter) && (
+          <div className="flex flex-col md:flex-row gap-4 md:gap-6">
             <div className="flex-1 bg-white p-5 md:p-6 rounded-[2rem] shadow-lg border border-primary/5 animate-in slide-in-from-right-4">
               <div className="flex items-center gap-2 mb-3 md:mb-4 text-primary">
                 <MapPin className="w-3.5 h-3.5" />
@@ -195,7 +205,7 @@ export default function Leaderboard() {
                 value={needsProvinceFilter ? selectedProvince : selectedDistrict} 
                 onValueChange={needsProvinceFilter ? setSelectedProvince : setSelectedDistrict}
               >
-                <SelectTrigger className="h-12 md:h-14 rounded-xl border-2 border-input bg-background font-bold px-4">
+                <SelectTrigger className="h-12 md:h-14 rounded-xl border-2 border-input bg-background font-bold px-4 data-[placeholder]:text-muted-foreground data-[placeholder]:font-normal">
                   <SelectValue placeholder={needsProvinceFilter ? "Choose Province" : "Choose District"} />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
@@ -205,30 +215,8 @@ export default function Leaderboard() {
                 </SelectContent>
               </Select>
             </div>
-          )}
-
-          <div className="flex-1 bg-white p-5 md:p-6 rounded-[2rem] shadow-lg border border-primary/5 animate-in slide-in-from-right-4">
-            <div className="flex items-center gap-2 mb-3 md:mb-4 text-primary">
-              <Filter className="w-3.5 h-3.5" />
-              <p className="text-[9px] md:text-[10px] font-black uppercase tracking-widest">Candidate Type / කාණ්ඩය</p>
-            </div>
-            <div className="flex bg-neutral-100 p-1.5 rounded-2xl border border-neutral-200">
-              {["Open", "limited"].map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                    selectedCategory === cat 
-                      ? 'bg-white text-primary shadow-lg ring-1 ring-primary/10' 
-                      : 'text-slate-400 hover:text-slate-600 hover:bg-neutral-200/50'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
           </div>
-        </div>
+        )}
 
         {/* Results Section */}
         <Card className="border-0 shadow-2xl shadow-primary/5 bg-white rounded-[2rem] md:rounded-[3rem] overflow-hidden">

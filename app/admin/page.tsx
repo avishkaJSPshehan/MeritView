@@ -6,6 +6,7 @@ import {
   getAdminRankings, 
   adminLogout, 
   deleteAllData, 
+  purgeDataByDate,
   getSystemConfig, 
   toggleConfig, 
   deleteStudent, 
@@ -49,7 +50,6 @@ export default function AdminDashboard() {
   // Filters
   const [selectedProvince, setSelectedProvince] = useState<string>("");
   const [selectedDistrict, setSelectedDistrict] = useState<string>("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("");
 
   // System Config
   const [systemConfig, setSystemConfig] = useState<{ 
@@ -90,7 +90,6 @@ export default function AdminDashboard() {
     const response = await getAdminRankings({
       province: filterProvince,
       district: filterDistrict,
-      category: (selectedCategory && selectedCategory !== "ALL") ? selectedCategory : undefined,
       sortBy,
       examDate: systemConfig.active_exam_date
     });
@@ -99,7 +98,7 @@ export default function AdminDashboard() {
       setData(response.data || []);
     }
     setLoading(false);
-  }, [activeTab, subjectView, selectedProvince, selectedDistrict, selectedCategory, systemConfig.active_exam_date]);
+  }, [activeTab, subjectView, selectedProvince, selectedDistrict, systemConfig.active_exam_date]);
 
   const fetchConfig = useCallback(async () => {
     setConfigLoading(true);
@@ -147,12 +146,39 @@ export default function AdminDashboard() {
     router.push("/");
   }
 
-  async function handleDeleteAll() {
-    if (!confirm("CRITICAL WARNING: This will permanently delete ALL student data from the database. This action cannot be undone. Are you absolutely sure?")) {
+  async function handlePurgeSelectedDate() {
+    const selectedDate = systemConfig.active_exam_date;
+    if (!confirm(`CRITICAL WARNING: This will permanently delete ALL candidate records for the selected exam date: "${selectedDate}". Other exam dates will not be affected. Do you want to continue?`)) {
       return;
     }
     
-    const password = prompt("DANGER ZONE: This operation will PERMANENTLY wipe the entire results database. Please enter the master admin password to confirm this action:");
+    const password = prompt(`DANGER ZONE: Enter master admin password to confirm purging data for date "${selectedDate}":`);
+    if (!password) return;
+
+    setLoading(true);
+    const isValid = await verifyAdminPassword(password);
+    if (!isValid) {
+      alert("Unauthorized: Incorrect admin password.");
+      setLoading(false);
+      return;
+    }
+
+    const result = await purgeDataByDate(selectedDate);
+    if (result.success) {
+      alert(`All candidate records for date "${selectedDate}" have been purged successfully.`);
+      fetchData();
+    } else {
+      alert("Error purging date data: " + result.error);
+    }
+    setLoading(false);
+  }
+
+  async function handlePurgeAllDates() {
+    if (!confirm("EXTREME WARNING: This will permanently delete ALL candidate records and scores across ALL examination dates from the entire database! This action CANNOT be undone. Are you absolutely certain?")) {
+      return;
+    }
+    
+    const password = prompt("DANGER ZONE: Enter master admin password to confirm PERMANENT deletion of all data across ALL dates:");
     if (!password) return;
 
     setLoading(true);
@@ -165,7 +191,7 @@ export default function AdminDashboard() {
 
     const result = await deleteAllData();
     if (result.success) {
-      alert("Database purged successfully.");
+      alert("Entire database purged successfully across all dates.");
       fetchData();
     } else {
       alert("Error deleting data: " + result.error);
@@ -229,7 +255,7 @@ export default function AdminDashboard() {
       student.rank = lastRank;
     });
 
-    if (systemConfig.ranking_mode === "categorized" && (!selectedCategory || selectedCategory === "ALL")) {
+    if (systemConfig.ranking_mode === "categorized") {
       const categorizedGroups: Record<string, typeof groups> = {};
       groups.forEach(s => {
         if (!categorizedGroups[s.category]) categorizedGroups[s.category] = [];
@@ -254,7 +280,7 @@ export default function AdminDashboard() {
     }
 
     return groups;
-  }, [data, subjectView, systemConfig.ranking_mode, selectedCategory]);
+  }, [data, subjectView, systemConfig.ranking_mode]);
 
   const needsProvinceFilter = activeTab === "province";
   const needsDistrictFilter = activeTab === "district";
@@ -333,24 +359,14 @@ export default function AdminDashboard() {
         {/* Subject Viewing Mode Toggle & Filters */}
         <div className="space-y-6">
           {/* SUBJECT VIEW TOGGLE BAR */}
-          <div className="bg-white p-6 rounded-[2.5rem] shadow-xl shadow-primary/5 border ring-1 ring-primary/5">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">
-                  Subject View Toggle / විෂය පරාසය තෝරන්න
-                </p>
-                <p className="text-sm text-foreground/75 font-semibold ml-1">
-                  View all 3 subjects together (aggregate score) or view individual subject rankings:
-                </p>
-              </div>
-
-              <div className="flex flex-wrap bg-neutral-100 p-1.5 rounded-2xl border border-neutral-200 gap-1.5">
+          <div className="bg-white p-4 sm:p-5 rounded-[2.5rem] shadow-xl shadow-primary/5 border ring-1 ring-primary/5 flex items-center justify-center">
+            <div className="flex flex-wrap justify-center bg-neutral-100 p-1.5 rounded-2xl border border-neutral-200 gap-1.5">
                 {[
                   { id: "all" as const, label: "All 3 Subjects Together", icon: Layers, active: true },
                   { id: "iq" as const, label: "IQ", icon: Brain, active: systemConfig.subject_iq_enabled },
                   { id: "gk" as const, label: "GK", icon: Globe2, active: systemConfig.subject_gk_enabled },
-                  { id: "lang" as const, label: "Language Proficiency", icon: Languages, active: systemConfig.subject_lang_enabled }
-                ].map((item) => (
+                  { id: "lang" as const, label: "භාෂා හැකියාව", icon: Languages, active: systemConfig.subject_lang_enabled }
+                ].filter(item => item.active).map((item) => (
                   <button
                     key={item.id}
                     onClick={() => setSubjectView(item.id)}
@@ -362,13 +378,9 @@ export default function AdminDashboard() {
                   >
                     <item.icon className="w-4 h-4 shrink-0" />
                     <span>{item.label}</span>
-                    {!item.active && item.id !== "all" && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-100 text-red-600 font-bold lowercase">off</span>
-                    )}
                   </button>
                 ))}
               </div>
-            </div>
           </div>
 
           {/* Secondary Filters */}
@@ -378,7 +390,7 @@ export default function AdminDashboard() {
                 <div className="bg-white p-6 rounded-[2rem] shadow-xl shadow-primary/5 border ring-1 ring-primary/5">
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-4 ml-1">Filter by Location</p>
                   <Select value={selectedProvince} onValueChange={setSelectedProvince}>
-                    <SelectTrigger className="h-14 rounded-xl border-2 bg-neutral-50/50 font-bold text-foreground focus:ring-4 focus:ring-primary/10">
+                    <SelectTrigger className="h-14 rounded-xl border-2 bg-neutral-50/50 font-bold text-foreground focus:ring-4 focus:ring-primary/10 data-[placeholder]:text-muted-foreground data-[placeholder]:font-normal">
                       <SelectValue placeholder="All Provinces" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-2">
@@ -396,7 +408,7 @@ export default function AdminDashboard() {
                  <div className="bg-white p-6 rounded-[2rem] shadow-xl shadow-primary/5 border ring-1 ring-primary/5">
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-4 ml-1">Deep Filter</p>
                   <Select value={selectedDistrict} onValueChange={setSelectedDistrict}>
-                    <SelectTrigger className="h-14 rounded-xl border-2 bg-neutral-50/50 font-bold text-foreground focus:ring-4 focus:ring-primary/10">
+                    <SelectTrigger className="h-14 rounded-xl border-2 bg-neutral-50/50 font-bold text-foreground focus:ring-4 focus:ring-primary/10 data-[placeholder]:text-muted-foreground data-[placeholder]:font-normal">
                       <SelectValue placeholder="All Districts" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-2">
@@ -408,31 +420,6 @@ export default function AdminDashboard() {
                 </div>
               </div>
             )}
-
-            <div className="w-full md:w-auto animate-in slide-in-from-left-4 duration-500">
-               <div className="bg-white p-6 rounded-[2rem] shadow-xl shadow-primary/5 border ring-1 ring-primary/5">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-4 ml-1">Category Filter</p>
-                <div className="flex bg-neutral-100 p-1.5 rounded-2xl border border-neutral-200">
-                  {[
-                    { v: "ALL", l: "All Types" },
-                    { v: "Open", l: "Open" },
-                    { v: "limited", l: "limited" }
-                  ].map((cat) => (
-                    <button
-                      key={cat.v}
-                      onClick={() => setSelectedCategory(cat.v)}
-                      className={`px-8 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                        (selectedCategory || "ALL") === cat.v 
-                          ? 'bg-white text-primary shadow-lg ring-1 ring-primary/10' 
-                          : 'text-slate-400 hover:text-slate-600 hover:bg-neutral-200/50'
-                      }`}
-                    >
-                      {cat.l}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -462,17 +449,22 @@ export default function AdminDashboard() {
                     <TableRow className="hover:bg-transparent border-b-2 text-neutral-900">
                       <TableHead className="w-[80px] text-center font-black uppercase tracking-widest text-[10px]">Pos</TableHead>
                       <TableHead className="font-black uppercase tracking-widest text-[10px] py-6">Candidate Identity</TableHead>
-                      <TableHead className="font-black uppercase tracking-widest text-[10px]">Type</TableHead>
                       <TableHead className="font-black uppercase tracking-widest text-[10px]">Origin</TableHead>
-                      <TableHead className={`text-right font-black uppercase tracking-widest text-[10px] ${subjectView === "iq" ? "text-primary bg-primary/5 font-extrabold" : ""}`}>
-                        IQ (බුද්ධි)
-                      </TableHead>
-                      <TableHead className={`text-right font-black uppercase tracking-widest text-[10px] ${subjectView === "gk" ? "text-primary bg-primary/5 font-extrabold" : ""}`}>
-                        GK (සාමාන්‍ය)
-                      </TableHead>
-                      <TableHead className={`text-right font-black uppercase tracking-widest text-[10px] ${subjectView === "lang" ? "text-primary bg-primary/5 font-extrabold" : ""}`}>
-                        Lang Prof (භාෂා)
-                      </TableHead>
+                      {systemConfig.subject_iq_enabled && (
+                        <TableHead className={`text-right font-black uppercase tracking-widest text-[10px] ${subjectView === "iq" ? "text-primary bg-primary/5 font-extrabold" : ""}`}>
+                          IQ (බුද්ධි)
+                        </TableHead>
+                      )}
+                      {systemConfig.subject_gk_enabled && (
+                        <TableHead className={`text-right font-black uppercase tracking-widest text-[10px] ${subjectView === "gk" ? "text-primary bg-primary/5 font-extrabold" : ""}`}>
+                          GK (සාමාන්‍ය)
+                        </TableHead>
+                      )}
+                      {systemConfig.subject_lang_enabled && (
+                        <TableHead className={`text-right font-black uppercase tracking-widest text-[10px] ${subjectView === "lang" ? "text-primary bg-primary/5 font-extrabold" : ""}`}>
+                          භාෂා හැකියාව
+                        </TableHead>
+                      )}
                       <TableHead className={`text-right font-black uppercase tracking-widest text-[10px] pr-8 ${subjectView === "all" ? "text-primary" : ""}`}>
                         Aggregate Total
                       </TableHead>
@@ -516,11 +508,6 @@ export default function AdminDashboard() {
                           </div>
                         </TableCell>
                         <TableCell>
-                           <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${student.category === 'limited' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                             {student.category}
-                           </span>
-                        </TableCell>
-                        <TableCell>
                           <div className="flex items-center gap-2">
                             <div className="w-1.5 h-4 bg-secondary rounded-full" />
                             <div>
@@ -531,19 +518,25 @@ export default function AdminDashboard() {
                         </TableCell>
                         
                         {/* IQ Marks */}
-                        <TableCell className={`text-right font-bold tabular-nums text-foreground ${subjectView === "iq" ? "bg-primary/10 text-primary font-black text-base" : "opacity-80"}`}>
-                          {student.iq_marks ?? 0}
-                        </TableCell>
+                        {systemConfig.subject_iq_enabled && (
+                          <TableCell className={`text-right font-bold tabular-nums text-foreground ${subjectView === "iq" ? "bg-primary/10 text-primary font-black text-base" : "opacity-80"}`}>
+                            {student.iq_marks ?? 0}
+                          </TableCell>
+                        )}
                         
                         {/* GK Marks */}
-                        <TableCell className={`text-right font-bold tabular-nums text-foreground ${subjectView === "gk" ? "bg-primary/10 text-primary font-black text-base" : "opacity-80"}`}>
-                          {student.gk_marks ?? 0}
-                        </TableCell>
+                        {systemConfig.subject_gk_enabled && (
+                          <TableCell className={`text-right font-bold tabular-nums text-foreground ${subjectView === "gk" ? "bg-primary/10 text-primary font-black text-base" : "opacity-80"}`}>
+                            {student.gk_marks ?? 0}
+                          </TableCell>
+                        )}
 
-                        {/* Language Proficiency Marks */}
-                        <TableCell className={`text-right font-bold tabular-nums text-foreground ${subjectView === "lang" ? "bg-primary/10 text-primary font-black text-base" : "opacity-80"}`}>
-                          {student.lang_marks ?? 0}
-                        </TableCell>
+                        {/* Language Ability Marks */}
+                        {systemConfig.subject_lang_enabled && (
+                          <TableCell className={`text-right font-bold tabular-nums text-foreground ${subjectView === "lang" ? "bg-primary/10 text-primary font-black text-base" : "opacity-80"}`}>
+                            {student.lang_marks ?? 0}
+                          </TableCell>
+                        )}
 
                         {/* Aggregate Total */}
                         <TableCell className="text-right pr-8">
@@ -752,7 +745,7 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
 
-            {/* Subject 3: Language Proficiency */}
+            {/* Subject 3: Language Ability */}
             <Card className={`border-0 shadow-xl rounded-[2.5rem] overflow-hidden transition-all duration-500 ${systemConfig.subject_lang_enabled ? 'bg-white ring-2 ring-primary/20' : 'bg-neutral-50 opacity-70'}`}>
               <CardHeader className="pb-4">
                 <div className="flex justify-between items-start">
@@ -763,11 +756,11 @@ export default function AdminDashboard() {
                     {systemConfig.subject_lang_enabled ? 'Active' : 'Disabled'}
                   </div>
                 </div>
-                <CardTitle className="text-xl font-black mt-4">Language Proficiency (භාෂා ප්‍රවීණතාව)</CardTitle>
+                <CardTitle className="text-xl font-black mt-4">භාෂා හැකියාව</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground font-medium mb-8">
-                  Language Proficiency paper. Toggling off removes it from candidate mark entry and aggregate calculation.
+                  භාෂා හැකියාව විෂය පත්‍රය. Toggling off removes it from candidate mark entry and aggregate calculation.
                 </p>
                 <Button 
                   onClick={() => handleToggle("subject_lang_enabled", systemConfig.subject_lang_enabled)}
@@ -777,9 +770,9 @@ export default function AdminDashboard() {
                   }`}
                 >
                   {systemConfig.subject_lang_enabled ? (
-                    <><X className="w-4 h-4" /> Disable Language Subject</>
+                    <><X className="w-4 h-4" /> Disable Subject</>
                   ) : (
-                    <><Check className="w-4 h-4" /> Enable Language Subject</>
+                    <><Check className="w-4 h-4" /> Enable Subject</>
                   )}
                 </Button>
               </CardContent>
@@ -788,7 +781,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Database Purge Danger Zone */}
-        <div className="max-w-xl">
+        <div className="max-w-2xl">
           <Card className="border-0 shadow-xl rounded-[2.5rem] bg-white ring-1 ring-destructive/10 overflow-hidden group hover:ring-destructive/30 transition-all">
              <div className="h-2 bg-destructive/10 group-hover:bg-destructive/30 transition-colors" />
              <CardHeader className="pb-4">
@@ -800,20 +793,67 @@ export default function AdminDashboard() {
                   Danger Zone
                 </div>
               </div>
-              <CardTitle className="text-xl font-black mt-4">Purge All Data</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground font-medium mb-8">
-                Instantly wipe all candidate records and scores from the host database.
+              <CardTitle className="text-xl font-black mt-4">Database Purge Controls</CardTitle>
+              <p className="text-sm text-muted-foreground font-medium">
+                Manage data purges safely. Delete data for the currently selected active date or completely wipe all records across all dates.
               </p>
-              <Button 
-                onClick={handleDeleteAll}
-                variant="destructive"
-                disabled={loading}
-                className="w-full h-14 rounded-2xl font-black shadow-lg shadow-destructive/20 hover:scale-[1.02] transform transition-all flex items-center justify-center gap-2"
-              >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Empty Database Now"}
-              </Button>
+            </CardHeader>
+            <CardContent className="space-y-6 pt-2">
+              {/* Option 1: Purge for Selected Date */}
+              <div className="p-6 rounded-3xl bg-neutral-50 border border-neutral-200/80 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-primary" />
+                    <span className="text-xs font-black uppercase tracking-wider text-foreground">
+                      Purge Selected Date Data
+                    </span>
+                  </div>
+                  <span className="text-xs font-mono font-bold bg-white px-3 py-1 rounded-xl border text-neutral-800 w-fit shadow-xs">
+                    Date: {systemConfig.active_exam_date}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground font-medium leading-relaxed">
+                  Permanently deletes candidate records and scores tagged with the currently selected exam date (<strong className="text-neutral-900">{systemConfig.active_exam_date}</strong>). All other exam dates remain completely safe.
+                </p>
+                <Button 
+                  onClick={handlePurgeSelectedDate}
+                  variant="destructive"
+                  disabled={loading}
+                  className="w-full h-12 rounded-2xl font-black text-xs uppercase tracking-wider shadow-md shadow-destructive/15 hover:scale-[1.01] transition-all flex items-center justify-center gap-2"
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Empty Database for {systemConfig.active_exam_date}
+                    </>
+                  )}
+                </Button>
+              </div>
+
+              {/* Option 2: Delete All Data Across All Dates (New Button) */}
+              <div className="p-6 rounded-3xl bg-red-50/60 border border-red-200 space-y-3">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-destructive" />
+                  <span className="text-xs font-black uppercase tracking-wider text-destructive">
+                    Purge All Dates (Global Wipe)
+                  </span>
+                </div>
+                <p className="text-xs text-red-900/70 font-medium leading-relaxed">
+                  Instantly wipes <strong>all</strong> candidate submissions, ranks, and historical records across <strong>every examination date</strong> in the database.
+                </p>
+                <Button 
+                  onClick={handlePurgeAllDates}
+                  disabled={loading}
+                  className="w-full h-12 rounded-2xl font-black text-xs uppercase tracking-wider bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/20 hover:scale-[1.01] transition-all flex items-center justify-center gap-2"
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : (
+                    <>
+                      <AlertTriangle className="w-4 h-4" />
+                      Delete All Data Across All Dates
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>

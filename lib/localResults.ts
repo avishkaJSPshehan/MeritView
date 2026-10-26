@@ -46,3 +46,21 @@ export function deleteLocalResult(id: string): void {
     console.error("Error deleting local result:", err);
   }
 }
+
+export function deleteLocalResultsByDate(date: string): void {
+  try {
+    const results = getLocalResults();
+    const updated = results.filter(r => r.exam_date !== date);
+    fs.writeFileSync(RESULTS_FILE, JSON.stringify(updated, null, 2), 'utf8');
+  } catch (err) {
+    console.error("Error deleting local results by date:", err);
+  }
+}
+
+export function deleteAllLocalResults(): void {
+  try {
+    fs.writeFileSync(RESULTS_FILE, JSON.stringify([], null, 2), 'utf8');
+  } catch (err) {
+    console.error("Error clearing all local results:", err);
+  }
+}

@@ -2,66 +2,113 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Menu, X, Trophy, Search, LayoutDashboard } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Menu, X, Trophy, Home as HomeIcon, Settings } from "lucide-react";
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const pathname = usePathname();
+
+  const isHome = pathname === "/";
+  const isLeaderboard = pathname === "/leaderboard";
+  const isAdmin = pathname.startsWith("/admin");
 
   return (
-    <header className="bg-[#0a0a0f] border-b border-white/5 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="h-20 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-0 group">
-            <div className="bg-[#e11d48] text-white w-9 h-9 flex items-center justify-center rounded-md font-black text-xl mr-2 shadow-lg shadow-rose-500/20 group-hover:scale-110 transition-transform">
+    <header className="sticky top-3 sm:top-4 z-50 w-full px-4 sm:px-6 lg:px-8 transition-all">
+      <div className="max-w-7xl mx-auto bg-[#f8f9fc]/60 backdrop-blur-md border border-neutral-200/60 shadow-sm rounded-2xl sm:rounded-[2rem] px-4 sm:px-8">
+        <div className="h-16 sm:h-20 flex items-center justify-between">
+          
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2 group">
+            <div className="bg-[#e11d48] text-white w-9 h-9 flex items-center justify-center rounded-xl font-black text-xl shadow-md shadow-rose-500/20 group-hover:scale-105 transition-transform">
               A
             </div>
-            <span className="font-bold text-2xl text-white tracking-tighter">
+            <span className="font-extrabold text-2xl text-neutral-900 tracking-tight">
               MeritView
             </span>
           </Link>
 
           {/* Desktop Nav */}
           <nav className="hidden md:flex items-center gap-8">
-            <Link href="/leaderboard" className="text-sm font-bold text-gray-400 hover:text-white transition-colors uppercase tracking-widest">
-              Leaderboard
+            <Link 
+              href="/" 
+              className={`flex items-center gap-2 text-sm font-bold transition-all relative py-1 ${
+                isHome 
+                  ? 'text-neutral-900 border-b-2 border-[#e11d48]' 
+                  : 'text-neutral-600 hover:text-neutral-900'
+              }`}
+            >
+              <HomeIcon className="w-4 h-4 text-[#e11d48]" />
+              <span>Home</span>
             </Link>
-            <Link href="/admin/login" className="text-sm font-bold text-gray-400 hover:text-white transition-colors uppercase tracking-widest">
-              Admin
+
+            <Link 
+              href="/leaderboard" 
+              className={`flex items-center gap-2 text-sm font-semibold transition-all relative py-1 ${
+                isLeaderboard 
+                  ? 'text-neutral-900 border-b-2 border-[#e11d48]' 
+                  : 'text-neutral-600 hover:text-neutral-900'
+              }`}
+            >
+              <Trophy className="w-4 h-4 text-neutral-500" />
+              <span>Leaderboard</span>
+            </Link>
+
+            <Link 
+              href="/admin/login" 
+              className={`flex items-center gap-2 text-sm font-semibold transition-all relative py-1 ${
+                isAdmin 
+                  ? 'text-neutral-900 border-b-2 border-[#e11d48]' 
+                  : 'text-neutral-600 hover:text-neutral-900'
+              }`}
+            >
+              <Settings className="w-4 h-4 text-neutral-500" />
+              <span>Admin</span>
             </Link>
           </nav>
 
           {/* Mobile Menu Button */}
           <button 
             onClick={() => setIsOpen(!isOpen)}
-            className="md:hidden text-gray-400 hover:text-white p-2 rounded-xl hover:bg-white/5 transition-colors"
+            className="md:hidden text-neutral-700 hover:text-neutral-900 p-2 rounded-xl hover:bg-neutral-100 transition-colors"
             aria-label="Toggle menu"
           >
-            {isOpen ? <X className="w-7 h-7" /> : <Menu className="w-7 h-7" />}
+            {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
         </div>
 
         {/* Mobile Nav Overlay */}
         {isOpen && (
-          <div className="md:hidden pb-10 space-y-2 animate-in fade-in slide-in-from-top-5 duration-300">
+          <div className="md:hidden pb-5 pt-2 space-y-2 border-t border-neutral-200/60 animate-in fade-in slide-in-from-top-3 duration-200">
             <Link 
-                href="/leaderboard" 
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 text-sm font-bold text-gray-300 hover:text-white hover:bg-white/10 transition-all uppercase tracking-widest"
+              href="/" 
+              onClick={() => setIsOpen(false)}
+              className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all ${
+                isHome ? 'bg-red-50 text-[#e11d48]' : 'text-neutral-700 hover:bg-neutral-50'
+              }`}
             >
-              <div className="bg-amber-400/20 p-2 rounded-lg">
-                <Trophy className="w-4 h-4 text-amber-400" />
-              </div>
+              <HomeIcon className="w-4 h-4 text-[#e11d48]" />
+              Home
+            </Link>
+            <Link 
+              href="/leaderboard" 
+              onClick={() => setIsOpen(false)}
+              className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all ${
+                isLeaderboard ? 'bg-red-50 text-[#e11d48]' : 'text-neutral-700 hover:bg-neutral-50'
+              }`}
+            >
+              <Trophy className="w-4 h-4 text-amber-500" />
               Leaderboard
             </Link>
             <Link 
-                href="/admin/login" 
-                onClick={() => setIsOpen(false)}
-                className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 text-sm font-bold text-gray-300 hover:text-white hover:bg-white/10 transition-all uppercase tracking-widest"
+              href="/admin/login" 
+              onClick={() => setIsOpen(false)}
+              className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all ${
+                isAdmin ? 'bg-red-50 text-[#e11d48]' : 'text-neutral-700 hover:bg-neutral-50'
+              }`}
             >
-              <div className="bg-blue-400/20 p-2 rounded-lg">
-                <LayoutDashboard className="w-4 h-4 text-blue-400" />
-              </div>
-              Admin Control
+              <Settings className="w-4 h-4 text-neutral-600" />
+              Admin
             </Link>
           </div>
         )}
