@@ -2,8 +2,8 @@
   "marks_entry_enabled": "true",
   "view_rankings_enabled": "true",
   "ranking_mode": "general",
-  "active_exam_date": "2026-10-22",
-  "subject_iq_enabled": "false",
-  "subject_gk_enabled": "false",
-  "subject_lang_enabled": "false"
+  "active_exam_date": "2026-10-26",
+  "subject_iq_enabled": "true",
+  "subject_gk_enabled": "true",
+  "subject_lang_enabled": "true"
 }

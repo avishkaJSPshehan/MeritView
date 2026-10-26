@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Menu, X, Trophy, Home as HomeIcon, Settings } from "lucide-react";
 
@@ -19,9 +20,15 @@ export function Navbar() {
         <div className="h-16 sm:h-20 flex items-center justify-between">
           
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 group">
-            <div className="bg-[#e11d48] text-white w-9 h-9 flex items-center justify-center rounded-xl font-black text-xl shadow-md shadow-rose-500/20 group-hover:scale-105 transition-transform">
-              A
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <div className="relative w-9 h-9 sm:w-10 sm:h-10 rounded-xl overflow-hidden shadow-md shadow-rose-500/20 group-hover:scale-105 transition-transform">
+              <Image
+                src="/logo.jpg"
+                alt="Logo"
+                fill
+                className="object-cover"
+                priority
+              />
             </div>
             <span className="font-extrabold text-2xl text-neutral-900 tracking-tight">
               MeritView
