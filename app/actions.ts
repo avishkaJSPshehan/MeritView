@@ -77,9 +77,9 @@ export async function submitMarks(formData: FormData) {
       district,
       category,
       subject: "General",
-      iq_marks: config.subject_iq_enabled ? iq_marks : null,
-      gk_marks: config.subject_gk_enabled ? gk_marks : null,
-      lang_marks: config.subject_lang_enabled ? lang_marks : null,
+      iq_marks: config.subject_iq_enabled ? iq_marks : 0,
+      gk_marks: config.subject_gk_enabled ? gk_marks : 0,
+      lang_marks: config.subject_lang_enabled ? lang_marks : 0,
       total_marks,
       exam_date: activeExamDate,
       whatsapp
@@ -135,9 +135,19 @@ export async function submitMarks(formData: FormData) {
           }
           if (retryRes.data?.[0]?.id) {
             studentRecord.id = retryRes.data[0].id;
+          } else if (retryRes.error) {
+            console.error("Supabase insert retry error:", retryRes.error);
+            return {
+              success: false,
+              error: "දත්ත ගබඩා කිරීමට නොහැකි විය: " + retryRes.error.message
+            };
           }
         } else {
-          console.warn("Supabase insert notice (saving to local persistence fallback):", error.message || error);
+          console.error("Supabase insert error:", error);
+          return {
+            success: false,
+            error: "දත්ත ගබඩා කිරීමට නොහැකි විය: " + error.message
+          };
         }
       } else if (insertedRows?.[0]?.id) {
         studentRecord.id = insertedRows[0].id;
@@ -598,10 +608,11 @@ export async function getAdminRankings(
 
     // Merge any local records that might not have synced yet
     const localData = getLocalResults();
-    const existingNics = new Set(allData.map(r => r.nic));
+    const existingKeys = new Set(allData.map(r => `${r.nic}_${r.exam_date}`));
     
     localData.forEach(localRec => {
-      if (!existingNics.has(localRec.nic) && (!effectiveDate || localRec.exam_date === effectiveDate)) {
+      const recKey = `${localRec.nic}_${localRec.exam_date}`;
+      if (!existingKeys.has(recKey) && (!effectiveDate || localRec.exam_date === effectiveDate)) {
         if (!params.category || params.category === "ALL" || localRec.category?.toLowerCase() === params.category?.toLowerCase()) {
           if (!params.province || localRec.province === params.province) {
             if (!params.district || localRec.district === params.district) {

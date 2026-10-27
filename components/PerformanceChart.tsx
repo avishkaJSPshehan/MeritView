@@ -185,7 +185,7 @@ export default function PerformanceChart({ data, name }: PerformanceChartProps) 
                 name="IQ"
                 stroke="#ef4444"
                 strokeWidth={3}
-                connectNulls={false}
+                connectNulls={true}
                 dot={{ r: 5, fill: "#ef4444", stroke: "#ffffff", strokeWidth: 2 }}
                 activeDot={{ r: 7, fill: "#ef4444", stroke: "#ffffff", strokeWidth: 2 }}
               />
@@ -197,7 +197,7 @@ export default function PerformanceChart({ data, name }: PerformanceChartProps) 
                 name="GK"
                 stroke="#3b82f6"
                 strokeWidth={3}
-                connectNulls={false}
+                connectNulls={true}
                 dot={{ r: 5, fill: "#3b82f6", stroke: "#ffffff", strokeWidth: 2 }}
                 activeDot={{ r: 7, fill: "#3b82f6", stroke: "#ffffff", strokeWidth: 2 }}
               />
@@ -209,7 +209,7 @@ export default function PerformanceChart({ data, name }: PerformanceChartProps) 
                 name="Language"
                 stroke="#10b981"
                 strokeWidth={3}
-                connectNulls={false}
+                connectNulls={true}
                 dot={{ r: 5, fill: "#10b981", stroke: "#ffffff", strokeWidth: 2 }}
                 activeDot={{ r: 7, fill: "#10b981", stroke: "#ffffff", strokeWidth: 2 }}
               />
